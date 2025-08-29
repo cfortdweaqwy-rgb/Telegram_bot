@@ -1,38 +1,35 @@
-import os
-import json
 import telebot
+import json
+import os
 
-# ضع هنا التوكن الخاص بالبوت
-TOKEN = "8359968226:AAE2eNEr-tCip4GCJXk9E2W7neViOXDP1VY"
-
+# ضع التوكن الخاص بالبوت هنا
+TOKEN = "ضع_التوكن_حقك_هنا"
 bot = telebot.TeleBot(TOKEN)
 
-# تحديد المسار الصحيح للملف links.json
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LINKS_FILE = os.path.join(BASE_DIR, "links.json")
+# تحميل ملف links.json من نفس مجلد البوت
+LINKS_FILE = os.path.join(os.path.dirname(__file__), "links.json")
 
-# قراءة ملف links.json
 with open(LINKS_FILE, "r", encoding="utf-8") as f:
     links = json.load(f)
 
-
-# مثال: أمر /start
+# رسالة الترحيب عند بدء البوت
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(message, "أهلاً بك! 🌹\nهذا بوت التجربة يعمل الآن.")
+    bot.reply_to(message, "👋 أهلاً بك في البوت! استخدم الأوامر أو اكتب اسم المادة للحصول على الملفات.")
 
-
-# مثال: إرسال الروابط من ملف links.json
-@bot.message_handler(commands=['get'])
+# إرسال الروابط عند كتابة اسم المادة
+@bot.message_handler(func=lambda message: True)
 def send_links(message):
-    text = "📂 الروابط المتوفرة:\n\n"
-    for subject, data in links.items():
-        text += f"📌 {subject}\n"
-        for section, urls in data.items():
+    subject = message.text.strip()
+    if subject in links:
+        response = f"📚 الروابط الخاصة بمادة: {subject}\n\n"
+        for category, urls in links[subject].items():
             if urls:
-                text += f"   🔗 {section}: {', '.join(urls)}\n"
-    bot.send_message(message.chat.id, text)
-
+                response += f"🔹 {category}:\n" + "\n".join(urls) + "\n\n"
+        bot.reply_to(message, response if response else "❌ لا توجد روابط حالياً لهذه المادة.")
+    else:
+        bot.reply_to(message, "❌ المادة غير موجودة في القائمة.")
 
 # تشغيل البوت
-bot.polling()
+print("🤖 البوت يعمل الآن...")
+bot.infinity_polling()
