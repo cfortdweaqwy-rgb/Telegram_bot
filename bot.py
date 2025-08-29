@@ -19,25 +19,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    subject = query.data
+    selection = query.data
 
     # زر الرجوع للقائمة الرئيسية
-    if subject == "رجوع":
+    if selection == "رجوع":
         keyboard = [[InlineKeyboardButton(subj, callback_data=subj)] for subj in data.keys()]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("📚 اختر مادة من القائمة:", reply_markup=reply_markup)
         return
 
-    # لو المادة موجودة في JSON
-    if subject in data:
+    # لو المستخدم اختار مادة
+    if selection in data:
+        subject = selection
         branches = data[subject]
-        keyboard = []
-        for branch, links in branches.items():
-            if isinstance(links, list) and len(links) > 0:
-                for i, link in enumerate(links, start=1):
-                    keyboard.append([InlineKeyboardButton(f"{branch} {i}", url=link)])
-            else:
-                keyboard.append([InlineKeyboardButton(f"{branch} (🚫 لا يوجد)", callback_data="no_link")])
+
+        keyboard = [[InlineKeyboardButton(branch, callback_data=f"{subject}|{branch}")]
+                    for branch in branches.keys()]
 
         # زر الرجوع
         keyboard.append([InlineKeyboardButton("⬅️ رجوع", callback_data="رجوع")])
@@ -48,8 +45,21 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
-    else:
-        await query.edit_message_text("🚫 هذا الخيار غير موجود.")
+        return
+
+    # لو المستخدم اختار فرع من مادة
+    if "|" in selection:
+        subject, branch = selection.split("|", 1)
+        links = data[subject][branch]
+
+        if links:
+            message = f"🔗 روابط *{branch}* لمادة *{subject}*:\n\n"
+            for i, link in enumerate(links, start=1):
+                message += f"{i}. {link}\n"
+        else:
+            message = f"🚫 لا توجد روابط حالياً لفرع *{branch}* في مادة *{subject}*."
+
+        await query.edit_message_text(message, parse_mode="Markdown")
 
 # تشغيل البوت
 def main():
