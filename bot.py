@@ -1,84 +1,61 @@
+import os
 import json
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# تحميل ملف المواد والروابط
+# تحميل الروابط من الملف
 with open("links.json", "r", encoding="utf-8") as f:
     data = json.load(f)
 
+TOKEN = os.getenv("BOT_TOKEN")  # لازم تضيف BOT_TOKEN في إعدادات Render
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # رابط البوت على Render
 
-# ========== دوال ==========
-# عرض المواد
-async def show_subjects(update_or_query, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[InlineKeyboardButton(subj, callback_data=f"subject|{subj}")] for subj in data.keys()]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    text = "👋 أهلاً بك في بوت المواد.\n\n📚 اختر مادة من القائمة:"
-
-    if hasattr(update_or_query, "message"):  # من /start
-        await update_or_query.message.reply_text(text, reply_markup=reply_markup)
-    else:  # من زر "رجوع"
-        await update_or_query.edit_message_text(text, reply_markup=reply_markup)
-
-
-# بدء البوت
+# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await show_subjects(update, context)
+    keyboard = [[InlineKeyboardButton(subj, callback_data=subj)] for subj in data.keys()]
+    await update.message.reply_text("اختر المادة:", reply_markup=InlineKeyboardMarkup(keyboard))
 
-
-# التعامل مع الأزرار
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# عرض الفروع
+async def show_branches(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    selection = query.data
+    subject = query.data
 
-    # اختيار مادة
-    if selection.startswith("subject|"):
-        subject = selection.split("|", 1)[1]
-        branches = data[subject]
+    if subject in data:
+        keyboard = [[InlineKeyboardButton(branch, callback_data=f"{subject}|{branch}")]
+                    for branch in data[subject].keys()]
+        keyboard.append([InlineKeyboardButton("⬅️ رجوع", callback_data="back_main")])
+        await query.edit_message_text(f"اختر الفرع من {subject}:",
+                                      reply_markup=InlineKeyboardMarkup(keyboard))
 
-        keyboard = [
-            [InlineKeyboardButton(branch, callback_data=f"branch|{subject}|{branch}")]
-            for branch in branches.keys()
-        ]
-        keyboard.append([InlineKeyboardButton("⬅️ رجوع", callback_data="back_subjects")])
+    elif "|" in subject:
+        subject_name, branch = subject.split("|")
+        links = data[subject_name][branch]
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text=f"📖 اختر فرع من *{subject}*: ",
-            reply_markup=reply_markup,
-            parse_mode="Markdown"
-        )
+        keyboard = [[InlineKeyboardButton(f"رابط {i+1}", url=link)]
+                    for i, link in enumerate(links)]
+        keyboard.append([InlineKeyboardButton("⬅️ رجوع", callback_data=subject_name)])
+        await query.edit_message_text(f"روابط {branch} ({subject_name}):",
+                                      reply_markup=InlineKeyboardMarkup(keyboard))
 
-    # اختيار فرع
-    elif selection.startswith("branch|"):
-        _, subject, branch = selection.split("|", 2)
-        links = data[subject][branch]
-
-        if links:
-            message = f"🔗 روابط *{branch}* لمادة *{subject}*:\n\n"
-            for i, link in enumerate(links, start=1):
-                message += f"{i}. {link}\n"
-        else:
-            message = f"🚫 لا توجد روابط حالياً لفرع *{branch}* في مادة *{subject}*."
-
-        keyboard = [[InlineKeyboardButton("⬅️ رجوع", callback_data=f"subject|{subject}")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await query.edit_message_text(message, parse_mode="Markdown", reply_markup=reply_markup)
-
-    # زر الرجوع للمواد
-    elif selection == "back_subjects":
-        await show_subjects(query, context)
+    elif subject == "back_main":
+        keyboard = [[InlineKeyboardButton(subj, callback_data=subj)] for subj in data.keys()]
+        await query.edit_message_text("اختر المادة:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-# ========== تشغيل البوت ==========
 def main():
-    application = Application.builder().token("8359968226:AAE2eNEr-tCip4GCJXk9E2W7neViOXDP1VY").build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(button))
-    application.run_polling()
+    app = Application.builder().token(TOKEN).build()
 
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(show_branches))
+
+    # إعداد الـ Webhook
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.getenv("PORT", 10000)),
+        url_path=TOKEN,
+        webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
+    )
 
 if __name__ == "__main__":
     main()
