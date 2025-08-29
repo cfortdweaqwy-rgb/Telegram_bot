@@ -3,7 +3,7 @@ import json
 import os
 
 # ضع التوكن الخاص بالبوت هنا
-TOKEN = "ضع_التوكن_حقك_هنا"
+TOKEN = "8359968226:AAE2eNEr-tCip4GCJXk9E2W7neViOXDP1VY"
 bot = telebot.TeleBot(TOKEN)
 
 # تحميل ملف links.json من نفس مجلد البوت
