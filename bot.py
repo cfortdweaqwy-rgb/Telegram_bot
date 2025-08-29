@@ -1,39 +1,84 @@
-import telebot
-import json
-from telebot import types
+import logging
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# ضع التوكن الخاص بك
+# ضع التوكن الخاص بك هنا
 TOKEN = "8359968226:AAE2eNEr-tCip4GCJXk9E2W7neViOXDP1VY"
-bot = telebot.TeleBot(TOKEN)
 
-# تحميل البيانات من links.json
-with open("links.json", "r", encoding="utf-8") as f:
-    links = json.load(f)
+# تفعيل اللوج للمتابعة
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 
-# رسالة الترحيب
-@bot.message_handler(commands=['start'])
-def start(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for subject in links.keys():
-        markup.add(subject)
-    bot.send_message(
-        message.chat.id,
-        "👋 أهلاً بك!\nاختر المادة 📚:",
-        reply_markup=markup
+# المواد
+subjects = {
+    "1": "📘 مادة الاحتمالات",
+    "2": "📘 مادة التجريبية",
+    "3": "📘 مادة صناعية 2",
+    "4": "📘 مادة تخطيط الانتاج",
+    "5": "📘 مادة بحوث عمليات 2",
+    "6": "📘 مادة التسويق والمبيعات"
+}
+
+# الفروع
+branches = {
+    "محاضرات": "📚 روابط المحاضرات",
+    "ملخصات": "📄 روابط الملخصات",
+    "مراجع": "📘 روابط المراجع",
+    "نماذج اختبارات": "📝 روابط النماذج"
+}
+
+
+# رسالة البداية
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton(name, callback_data=f"subject_{id}")]
+        for id, name in subjects.items()
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "👋 أهلاً بك!\n\nاختر المادة من القائمة:", reply_markup=reply_markup
     )
+
 
 # عند اختيار مادة
-@bot.message_handler(func=lambda msg: msg.text in links.keys())
-def subject_menu(message):
-    subject = message.text
-    markup = types.InlineKeyboardMarkup()
-    for branch, url in links[subject].items():
-        markup.add(types.InlineKeyboardButton(branch, url=url))
-    bot.send_message(
-        message.chat.id,
-        f"📖 اختر الفرع الخاص بـ {subject}:",
-        reply_markup=markup
-    )
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-print("✅ Bot is running...")
-bot.polling(none_stop=True)
+    if query.data.startswith("subject_"):
+        # استخراج رقم المادة
+        subject_id = query.data.split("_")[1]
+        subject_name = subjects[subject_id]
+
+        # أزرار الفروع
+        keyboard = [
+            [InlineKeyboardButton(branch, callback_data=f"branch_{branch}")]
+            for branch in branches.keys()
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await query.edit_message_text(
+            text=f"📚 لقد اخترت: {subject_name}\n\nاختر الفرع:",
+            reply_markup=reply_markup,
+        )
+
+    elif query.data.startswith("branch_"):
+        branch_name = query.data.split("_")[1]
+        await query.edit_message_text(
+            text=f"✅ تم اختيار الفرع: {branch_name}\n{branches[branch_name]}"
+        )
+
+
+def main():
+    app = Application.builder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+
+    print("🤖 البوت شغال...")
+    app.run_polling()
+
+
+if __name__ == "__main__":
+    main()
