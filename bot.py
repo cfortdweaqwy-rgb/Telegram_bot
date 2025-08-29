@@ -52,7 +52,7 @@ async def branch_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 def main():
-    TOKEN = "YOUR_BOT_TOKEN"
+    TOKEN = "8359968226:AAE2eNEr-tCip4GCJXk9E2W7neViOXDP1VY"
 
     app = Application.builder().token(TOKEN).build()
 
