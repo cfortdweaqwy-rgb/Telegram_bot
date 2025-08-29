@@ -1,64 +1,61 @@
-import logging
 import json
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-
-# تفعيل اللوغز
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
 )
 
-# قراءة المواد من ملف JSON
+# تحميل المواد والفروع من ملف JSON
 with open("links.json", "r", encoding="utf-8") as f:
-    subjects = json.load(f)
+    data = json.load(f)
 
-# رسالة الترحيب + عرض المواد
+# رسالة الترحيب
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "👋 أهلاً بك!\nاستخدم الأمر /menu لاختيار المادة."
+    )
+
+# عرض المواد
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton(name, callback_data=name)] for name in subjects.keys()
+        [InlineKeyboardButton(subj, callback_data=subj)] for subj in data.keys()
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("👋 أهلاً بك!\n\nاختر المادة من القائمة:", reply_markup=reply_markup)
+    await update.message.reply_text("📚 اختر المادة:", reply_markup=reply_markup)
 
-# عند اختيار المادة → عرض الفروع
-async def subject_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# عند اختيار مادة → عرض الفروع
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
     subject = query.data
-    branches = subjects[subject]
+    branches = data.get(subject, {})
 
-    keyboard = [
-        [InlineKeyboardButton(branch, callback_data=f"{subject}|{branch}")]
-        for branch in branches.keys()
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    await query.edit_message_text(
-        text=f"📘 اختر الفرع في مادة: {subject}",
-        reply_markup=reply_markup,
-    )
-
-# عند اختيار الفرع → إرسال الرابط
-async def branch_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    subject, branch = query.data.split("|")
-    link = subjects[subject][branch]
-
-    await query.edit_message_text(
-        text=f"✅ هذا رابط {branch} لمادة {subject}:\n\n{link}"
-    )
+    if branches:
+        keyboard = [
+            [InlineKeyboardButton(branch, url=link)]
+            for branch, link in branches.items()
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            text=f"📖 اختر الفرع الخاص بـ *{subject}*:",
+            reply_markup=reply_markup,
+            parse_mode="Markdown",
+        )
+    else:
+        await query.edit_message_text(f"❌ لا توجد فروع للمادة {subject}")
 
 def main():
+    # ضع التوكن تبعك هنا
     TOKEN = "8359968226:AAE2eNEr-tCip4GCJXk9E2W7neViOXDP1VY"
 
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(branch_handler, pattern=".*\|.*"))
-    app.add_handler(CallbackQueryHandler(subject_handler, pattern="^(?!.*\|).*"))
+    app.add_handler(CommandHandler("menu", menu))
+    app.add_handler(CallbackQueryHandler(button))
 
     app.run_polling()
 
