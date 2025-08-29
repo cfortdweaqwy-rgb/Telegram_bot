@@ -3,7 +3,7 @@ import json
 from telebot import types
 
 # ضع التوكن الخاص بك
-TOKEN = "ضع_التوكن_هنا"
+TOKEN = "8359968226:AAE2eNEr-tCip4GCJXk9E2W7neViOXDP1VY"
 bot = telebot.TeleBot(TOKEN)
 
 # تحميل البيانات من links.json
