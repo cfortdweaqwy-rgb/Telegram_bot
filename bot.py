@@ -1,76 +1,74 @@
-import os
+import json
+import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Updater, 
-    CommandHandler, 
-    CallbackQueryHandler, 
-    CallbackContext
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+
+# تسجيل الأخطاء
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
-# 1. التوكن (من الـ Environment Variables في Render)
-TOKEN = os.getenv("BOT_TOKEN")
+# تحميل الروابط من JSON
+with open("links.json", "r", encoding="utf-8") as f:
+    LINKS = json.load(f)
 
-# 2. روابط المواد والفروع
-subjects = {
-    "رياضيات": {
-        "جبر": "https://example.com/jabr",
-        "تفاضل": "https://example.com/tafadol"
-    },
-    "برمجة": {
-        "بايثون": "https://example.com/python",
-        "جافا": "https://example.com/java"
-    },
-    "شبكات": {
-        "مقدمة": "https://example.com/network1",
-        "أمان": "https://example.com/network2"
-    }
-}
+TOKEN = "8359968226:AAE2eNEr-tCip4GCJXk9E2W7neViOXDP1VY"
 
-# دالة /start
-def start(update: Update, context: CallbackContext):
-    keyboard = [[InlineKeyboardButton(subj, callback_data=subj)] for subj in subjects]
+# قائمة المواد
+SUBJECTS = list(LINKS.keys())
+
+# ⬇️ أمر /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [[InlineKeyboardButton(subj, callback_data=f"subject|{subj}")]
+                for subj in SUBJECTS]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("اختر المادة:", reply_markup=reply_markup)
+    await update.message.reply_text("اختر المادة:", reply_markup=reply_markup)
 
-# التعامل مع الأزرار
-def button(update: Update, context: CallbackContext):
+# ⬇️ التعامل مع الضغط على الأزرار
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
-    # لو المستخدم اختار مادة
-    if query.data in subjects:
-        keyboard = [
-            [InlineKeyboardButton(branch, url=link)] for branch, link in subjects[query.data].items()
-        ]
-        keyboard.append([InlineKeyboardButton("↩️ رجوع", callback_data="رجوع")])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        query.edit_message_text(text=f"اختر فرع من {query.data}:", reply_markup=reply_markup)
+    data = query.data.split("|")
+    action = data[0]
 
-    # لو المستخدم ضغط رجوع
-    elif query.data == "رجوع":
-        keyboard = [[InlineKeyboardButton(subj, callback_data=subj)] for subj in subjects]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        query.edit_message_text(text="اختر المادة:", reply_markup=reply_markup)
+    # عرض فروع المادة
+    if action == "subject":
+        subject = data[1]
+        keyboard = [[InlineKeyboardButton(branch, callback_data=f"branch|{subject}|{branch}")]
+                    for branch in LINKS[subject].keys()]
+        keyboard.append([InlineKeyboardButton("⬅️ رجوع", callback_data="back_to_subjects")])
+        await query.edit_message_text(
+            text=f"📘 اختر الفرع في مادة {subject}:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
+    # عرض روابط الفرع
+    elif action == "branch":
+        subject, branch = data[1], data[2]
+        links = LINKS[subject][branch]
+        keyboard = [[InlineKeyboardButton(f"رابط {i+1}", url=link)] for i, link in enumerate(links)]
+        keyboard.append([InlineKeyboardButton("⬅️ رجوع", callback_data=f"subject|{subject}")])
+        await query.edit_message_text(
+            text=f"🔗 روابط {branch} ({subject}):",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    # رجوع للمواد
+    elif action == "back_to_subjects":
+        keyboard = [[InlineKeyboardButton(subj, callback_data=f"subject|{subj}")]
+                    for subj in SUBJECTS]
+        await query.edit_message_text("اختر المادة:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+# ⬇️ تشغيل البوت
 def main():
-    updater = Updater(TOKEN, use_context=True)
+    app = Application.builder().token(TOKEN).build()
 
-    dp = updater.dispatcher
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CallbackQueryHandler(button))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button))
 
-    # إعداد Webhook لـ Render
-    PORT = int(os.environ.get("PORT", 8443))
-    HEROKU_URL = os.environ.get("RENDER_EXTERNAL_URL")  # Render يعطيك هذا الرابط تلقائياً
+    print("✅ البوت شغال...")
+    app.run_polling()
 
-    updater.start_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=TOKEN,
-        webhook_url=f"{HEROKU_URL}/{TOKEN}"
-    )
-
-    updater.idle()
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
